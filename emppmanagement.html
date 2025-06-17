@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Employee Management System</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: url('https://images.unsplash.com/photo-1551836022-d5d88e9218df') no-repeat center center fixed;
+      background-size: cover;
+      color: #fff;
+    }
+    .overlay {
+      background-color: rgba(0, 0, 0, 0.7);
+      padding: 20px;
+      border-radius: 10px;
+      max-width: 1100px;
+      margin: 40px auto;
+    }
+    h1, h2 { text-align: center; }
+    input, button, select { padding: 8px; margin: 4px; }
+    .section { margin-bottom: 40px; }
+    table {
+      width: 100%; background-color: #fff; color: #000;
+      border-collapse: collapse; margin-top: 10px;
+    }
+    th, td { padding: 10px; border: 1px solid #ccc; }
+    .welcome { font-size: 22px; text-align: center; margin-top: 20px; }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+<div class="overlay">
+  <h1>Welcome to ABC Corp Employee Portal</h1>
+  <div class="welcome" id="welcomeMsg">Please log in to continue</div>
+
+  <!-- Login Section -->
+  <div id="loginSection">
+    <input type="text" id="loginEmail" placeholder="Email" />
+    <input type="password" id="loginPassword" placeholder="Password" />
+    <button onclick="login()">Login</button>
+    <p>Don't have an account? <a href="#" onclick="showRegister()">Register here</a></p>
+  </div>
+
+  <!-- Register Section -->
+  <div id="registerSection" class="hidden">
+    <h2>Register</h2>
+    <input type="text" id="regEmail" placeholder="Email" />
+    <input type="password" id="regPassword" placeholder="Password" />
+    <select id="regRole">
+      <option value="EMPLOYEE">Employee</option>
+      <option value="HR">HR</option>
+    </select>
+    <button onclick="register()">Register</button>
+    <p>Already have an account? <a href="#" onclick="showLogin()">Login here</a></p>
+  </div>
+
+  <!-- Dashboard -->
+  <div id="dashboard" class="hidden">
+    <h2>Dashboard</h2>
+
+    <!-- Office Section -->
+    <div class="section" id="officeSection">
+      <h3>Office Details</h3>
+      <div id="officeCreate" class="hidden">
+        <input type="text" id="newOfficeName" placeholder="Name">
+        <input type="text" id="newDesignation" placeholder="Designation">
+        <input type="text" id="newEmail" placeholder="Email">
+        <input type="number" id="newSalary" placeholder="Salary">
+        <input type="number" id="newExperience" placeholder="Experience">
+        <button onclick="createOffice()">Add</button>
+      </div>
+      <input type="text" id="salaryFilter" placeholder="Filter by salary" />
+      <button onclick="filterOfficeBySalary()">Filter</button>
+      <input type="text" id="designationFilter" placeholder="Filter by designation" />
+      <button onclick="filterOfficeByDesignation()">Filter</button>
+      <button onclick="loadOffice()">View All Office Details</button>
+
+      <table id="officeTable"></table>
+    </div>
+
+    <!-- Personal Section -->
+    <div class="section" id="personalSection">
+    <h3>Personal Details</h3>
+<button id="loadAllBtn" onclick="loadPersonal()">Load All (HR only)</button>
+<div id="employeeView" class="hidden">
+  <input type="number" id="myPersonalId" placeholder="Enter Your Personal ID" />
+  <button onclick="loadMyPersonal()">View My Info</button>
+</div>
+
+
+      <div id="personalCreate" class="hidden">
+        <input type="text" id="newPersonalName" placeholder="Name">
+        <input type="text" id="newAadhar" placeholder="Aadhar Number">
+        <input type="text" id="newPhone" placeholder="Phone">
+        <input type="text" id="newAddress" placeholder="Address">
+        <button onclick="createPersonal()">Add</button>
+      </div>
+      <table id="personalTable"></table>
+     <div id="personalEdit" class="hidden">
+  <h4>Edit Personal Info</h4>
+  <input type="text" id="editName" placeholder="Name" />
+  <input type="text" id="editAadhar" placeholder="Aadhar Number" />
+  <input type="text" id="editPhone" placeholder="Phone" />
+  <input type="text" id="editAddress" placeholder="Address" />
+  <button onclick="updatePersonal()">Update</button>
+</div>
+    </div>
+  </div>
+</div>
+
+<script>
+  let currentUser = null;
+  let currentPersonalId = null;
+  const apiBase = 'http://localhost:8080';
+
+  function validateEmail(email) {
+    return email.includes('@');
+  }
+
+  function login() {
+    const email = document.getElementById("loginEmail").value;
+    const password = document.getElementById("loginPassword").value;
+
+    if (!validateEmail(email)) {
+      alert("Please enter a valid email address containing '@'.");
+      return;
+    }
+  
+
+    fetch(`${apiBase}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
+    })
+    .then(res => {
+      if (!res.ok) throw new Error("Invalid credentials");
+      return res.json();
+    })
+    .then(user => {
+      currentUser = user;
+      document.getElementById("welcomeMsg").textContent = `Welcome ${user.role} - ${user.email}`;
+      document.getElementById("loginSection").classList.add("hidden");
+      document.getElementById("dashboard").classList.remove("hidden");
+      if (user.role === 'HR') {
+        document.getElementById("officeCreate").classList.remove("hidden");
+        document.getElementById("personalCreate").classList.remove("hidden");
+      }
+      loadOffice();
+      if (user.role === 'HR') {
+        loadPersonal(); // HR sees all
+      }
+      else {
+  document.getElementById("employeeView").classList.remove("hidden");
+}
+  if (user.role !== 'HR') {
+  document.getElementById("loadAllBtn").classList.add("hidden");
+}
+
+
+    })
+    .catch(() => alert("Login failed. Please check credentials."));
+  }
+
+  function register() {
+    const email = document.getElementById("regEmail").value;
+    const password = document.getElementById("regPassword").value;
+    const role = document.getElementById("regRole").value;
+
+    if (!validateEmail(email)) {
+      alert("Please enter a valid email address containing '@'.");
+      return;
+    }
+
+    fetch(`${apiBase}/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password, role })
+    })
+    .then(res => {
+      if (res.ok) {
+        alert("Registration successful! You can now log in.");
+        showLogin();
+      } else if (res.status === 409) {
+        alert("This account already exists. Try logging in instead.");
+      } else {
+        throw new Error();
+      }
+    })
+    .catch(() => alert("Registration failed. Try a different email or check backend."));
+  }
+
+  function loadOffice() {
+    fetch(`${apiBase}/employee/office`)
+      .then(res => res.json())
+      .then(data => renderOffice(data));
+  }
+
+  function renderOffice(data) {
+    const table = document.getElementById("officeTable");
+    let html = `<tr>
+      <th>ID</th><th>Name</th><th>Designation</th><th>Email</th><th>Salary</th><th>Experience</th>`;
+    if (currentUser.role === 'HR') html += `<th>Actions</th>`;
+    html += `</tr>`;
+    table.innerHTML = html + data.map(o => {
+      let row = `<tr>
+        <td>${o.id}</td><td>${o.name}</td><td>${o.designation}</td><td>${o.email}</td>
+        <td>${o.salary}</td><td>${o.experience}</td>`;
+      if (currentUser.role === 'HR') {
+        row += `<td>
+          <button onclick="editOffice(${o.id}, '${o.name}', '${o.designation}', '${o.email}', ${o.salary}, ${o.experience})">Edit</button>
+          <button onclick="deleteOffice(${o.id})">Delete</button>
+        </td>`;
+      }
+      return row + `</tr>`;
+    }).join('');
+  }
+
+  function filterOfficeBySalary() {
+  const salary = document.getElementById("salaryFilter").value;
+  fetch(`${apiBase}/employee/office/salary/${salary}`)
+    .then(res => res.json())
+    .then(data => {
+      if (data.length === 0) {
+        alert("No employees with the given salary.");
+        document.getElementById("officeTable").innerHTML = "";
+      } else {
+        renderOffice(data);
+      }
+    })
+    .catch(() => alert("Error fetching salary data."));
+}
+function loadMyPersonal() {
+  const id = document.getElementById("myPersonalId").value;
+  if (!id) {
+    alert("Please enter your Personal ID.");
+    return;
+  }
+
+  currentPersonalId = id;
+
+  fetch(`${apiBase}/employee/personal/${id}`)
+    .then(res => {
+      if (!res.ok) throw new Error();
+      return res.json();
+    })
+    .then(p => {
+      const table = document.getElementById("personalTable");
+      table.innerHTML = `<tr><th>Name</th><th>Aadhar</th><th>Phone</th><th>Address</th><th>Actions</th></tr>
+        <tr>
+          <td>${p.name}</td><td>${p.aadharNumber}</td><td>${p.phone}</td><td>${p.address}</td>
+          <td>
+            <button onclick="editPersonal(${p.id}, '${p.name}', '${p.aadharNumber}', '${p.phone}', '${p.address}')" style="width:150px">Edit</button>
+          
+          </td>
+        </tr>`;
+    })
+    .catch(() => alert("Failed to load your personal info. Please check the ID."));
+}
+
+
+
+  function filterOfficeByDesignation() {
+  const designation = document.getElementById("designationFilter").value;
+  fetch(`${apiBase}/employee/office/designation/${designation}`)
+    .then(res => res.json())
+    .then(data => {
+      if (data.length === 0) {
+        alert("No employees with the specified designation.");
+        document.getElementById("officeTable").innerHTML = "";
+      } else {
+        renderOffice(data);
+      }
+    })
+    .catch(() => alert("Error fetching designation data."));
+}
+
+
+  function createOffice() {
+    const name = document.getElementById("newOfficeName").value;
+    const designation = document.getElementById("newDesignation").value;
+    const email = document.getElementById("newEmail").value;
+    const salary = parseFloat(document.getElementById("newSalary").value);
+    const experience = parseInt(document.getElementById("newExperience").value);
+    fetch(`${apiBase}/hr/office`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, designation, email, salary, experience })
+    })
+    .then(() => { alert("Added!"); loadOffice(); });
+  }
+
+  function editOffice(id, name, designation, email, salary, experience) {
+    const newName = prompt("Name:", name);
+    const newDesignation = prompt("Designation:", designation);
+    const newEmail = prompt("Email:", email);
+    const newSalary = prompt("Salary:", salary);
+    const newExperience = prompt("Experience:", experience);
+    fetch(`${apiBase}/hr/office/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: newName, designation: newDesignation,
+        email: newEmail, salary: parseFloat(newSalary),
+        experience: parseInt(newExperience)
+      })
+    }).then(() => { alert("Updated!"); loadOffice(); });
+  }
+
+  function deleteOffice(id) {
+    if (confirm("Delete this record?")) {
+      fetch(`${apiBase}/hr/office/${id}`, { method: 'DELETE' })
+        .then(() => { alert("Deleted."); loadOffice(); });
+    }
+  }
+
+  function loadPersonal() {
+    fetch(`${apiBase}/hr/personal`)
+      .then(res => res.json())
+      .then(data => {
+        const table = document.getElementById("personalTable");
+        table.innerHTML = `<tr><th>Name</th><th>Aadhar</th><th>Phone</th><th>Address</th><th>Action</th></tr>` +
+          data.map(p => `<tr>
+            <td>${p.name}</td><td>${p.aadharNumber}</td><td>${p.phone}</td><td>${p.address}</td>
+            <td>
+              <button onclick="editPersonal(${p.id}, '${p.name}', '${p.aadharNumber}', '${p.phone}', '${p.address}')">Edit</button>
+              ${currentUser.role === 'HR' ? `<button onclick="deletePersonal(${p.id})">Delete</button>` : ''}
+            </td></tr>`).join('');
+      });
+  }
+
+  // UPDATED to include name and aadhar
+  function editPersonal(id, name, aadharNumber, phone, address) {
+    currentPersonalId = id;
+    document.getElementById("editName").value = name;
+    document.getElementById("editAadhar").value = aadharNumber;
+    document.getElementById("editPhone").value = phone;
+    document.getElementById("editAddress").value = address;
+    document.getElementById("personalEdit").classList.remove("hidden");
+  }
+
+  // UPDATED to send all fields including name and aadhar
+ function updatePersonal() {
+  const name = document.getElementById("editName").value;
+  const aadharNumber = document.getElementById("editAadhar").value;
+  const phone = document.getElementById("editPhone").value;
+  const address = document.getElementById("editAddress").value;
+
+  fetch(`${apiBase}/employee/personal/${currentPersonalId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, aadharNumber, phone, address })
+  }).then(() => {
+    alert("Updated!");
+    loadMyPersonal(); // Show only employee's own data
+    document.getElementById("personalEdit").classList.add("hidden");
+  });
+}
+
+
+  // FIXED: Made sure all fields are sent correctly
+  function createPersonal() {
+    const name = document.getElementById("newPersonalName").value;
+    const aadharNumber = document.getElementById("newAadhar").value;
+    const phone = document.getElementById("newPhone").value;
+    const address = document.getElementById("newAddress").value;
+
+    if (!name || !aadharNumber || !phone || !address) {
+      alert("All fields are required!");
+      return;
+    }
+
+    fetch(`${apiBase}/hr/personal`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, aadharNumber, phone, address })
+    })
+    .then(res => {
+      if (!res.ok) throw new Error();
+      alert("Added!");
+      loadPersonal();
+    })
+    .catch(() => alert("Failed to add personal detail."));
+  }
+
+  function deletePersonal(id) {
+    if (!confirm("Are you sure you want to delete this record?")) return;
+
+    fetch(`${apiBase}/hr/personal/${id}`, {
+      method: 'DELETE'
+    })
+    .then(res => {
+      if (!res.ok) throw new Error();
+      alert("Deleted!");
+      loadPersonal();
+    })
+    .catch(() => alert("Failed to delete the record."));
+  }
+ 
+</script>
+</body>
+</html>
